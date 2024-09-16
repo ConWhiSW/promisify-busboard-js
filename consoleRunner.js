@@ -12,10 +12,10 @@ const TFL_BASE_URL = 'https://api.tfl.gov.uk';
 
 export default class ConsoleRunner {
 
-    promptForPostcode(callback) {
-        readline.question('\nEnter your postcode: ', function(postcode) {
+    promptForPostcode() {
+        readline.question('\nEnter your postcode: ', (postcode) => {
             readline.close();
-            callback(postcode);
+            return postcode;
         });
     }
 
@@ -73,14 +73,15 @@ export default class ConsoleRunner {
         );
     }
 
-    run() {
+    async run() {
         const that = this;
-        that.promptForPostcode(function(postcode) {
-            postcode = postcode.replace(/\s/g, '');
-            that.getLocationForPostCode(postcode, function(location) {
-                that.getNearestStopPoints(location.latitude, location.longitude, 5, function(stopPoints) {
-                    that.displayStopPoints(stopPoints);
-                });
+
+        let postcode = await that.promptForPostcode();
+        console.log(postcode)
+        postcode = postcode.replace(/\s/g, '');
+        that.getLocationForPostCode(postcode, function(location) {
+            that.getNearestStopPoints(location.latitude, location.longitude, 5, function(stopPoints) {
+                that.displayStopPoints(stopPoints);
             });
         });
     }
