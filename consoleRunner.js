@@ -12,11 +12,13 @@ const TFL_BASE_URL = 'https://api.tfl.gov.uk';
 
 export default class ConsoleRunner {
 
-    promptForPostcode() {
-        readline.question('\nEnter your postcode: ', (postcode) => {
-            readline.close();
-            return postcode;
-        });
+    async promptForPostcode() {
+        return new Promise((resolve) => {
+            readline.question('\nEnter your postcode: ', ( postcode ) => {
+                readline.close();
+                resolve(postcode);
+            });
+        })
     }
 
     displayStopPoints(stopPoints) {
@@ -31,29 +33,29 @@ export default class ConsoleRunner {
         return requestUrl.href;
     }
 
-    makeGetRequest(baseUrl, endpoint, parameters, callback) {
+    async makeGetRequest(baseUrl, endpoint, parameters) {
         const url = this.buildUrl(baseUrl, endpoint, parameters);
 
-        request.get(url, (err, response, body) => {
-            if (err) {
-                console.log(err);
-            } else if (response.statusCode !== 200) {
+        try {
+            const response = await fetch(url);
+            if (response.status !== 200) {
                 console.log(response.statusCode);
-            } else {
-                callback(body);
             }
-        });
+            const body = await response.json();
+            return body
+        }
+        catch (error) {
+            console.log(error)
+        }
     }
 
-    getLocationForPostCode(postcode, callback) {
-        this.makeGetRequest(POSTCODES_BASE_URL, `postcodes/${postcode}`, [], function(responseBody) {
-            const jsonBody = JSON.parse(responseBody);
-            callback({ latitude: jsonBody.result.latitude, longitude: jsonBody.result.longitude });
-        });
-    }
+    async getLocationForPostcode(postcode) {
+        const locationResponse = await this.makeGetRequest(POSTCODES_BASE_URL, `postcodes/${postcode}`, []);
+        return { latitude: locationResponse.result.latitude, longitude: locationResponse.result.longitude };
+    };
 
-    getNearestStopPoints(latitude, longitude, count, callback) {
-        this.makeGetRequest(
+    async getNearestStopPoints(latitude, longitude, count) {
+        const stopResponse = await this.makeGetRequest(
             TFL_BASE_URL,
             `StopPoint`, 
             [
@@ -63,26 +65,21 @@ export default class ConsoleRunner {
                 {name: 'radius', value: 1000},
                 {name: 'app_id', value: '' /* Enter your app id here */},
                 {name: 'app_key', value: '' /* Enter your app key here */}
-            ],
-            function(responseBody) {
-                const stopPoints = JSON.parse(responseBody).stopPoints.map(function(entity) { 
-                    return { naptanId: entity.naptanId, commonName: entity.commonName };
-                }).slice(0, count);
-                callback(stopPoints);
-            }
-        );
+            ]);
+        const stopPoints = stopResponse.stopPoints.map((entity) => { 
+            return { naptanId: entity.naptanId, commonName: entity.commonName };
+        }).slice(0, count);
+
+        return stopPoints;
     }
 
     async run() {
         const that = this;
 
-        let postcode = await that.promptForPostcode();
-        console.log(postcode)
-        postcode = postcode.replace(/\s/g, '');
-        that.getLocationForPostCode(postcode, function(location) {
-            that.getNearestStopPoints(location.latitude, location.longitude, 5, function(stopPoints) {
-                that.displayStopPoints(stopPoints);
-            });
-        });
+        const postcode = await that.promptForPostcode();
+        const editedPostcode = postcode.replace(/\s/g, '');
+        const location = await that.getLocationForPostcode(editedPostcode);
+        const stopPoints = await that.getNearestStopPoints(location.latitude, location.longitude, 5);
+        that.displayStopPoints(stopPoints);       
     }
 }
